@@ -1,0 +1,10 @@
+Heart rate monitor: https://www.scosche.com/rhythm-plus-heart-rate-monitor-armband
+
+Example HR python code: https://github.com/fg1/BLEHeartRateLogger
+
+HR example 2: https://learn.adafruit.com/circuitpython-ble-heart-rate-monitor-gizmo/code-the-heart-rate-zone-trainer-in-circuitpython
+
+Audio meter example: https://elec-club-iitb.github.io/blog/2016/08/sound-meter/
+
+Audio example 2: https://github.com/kmein/vu-meter
+
