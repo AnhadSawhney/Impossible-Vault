@@ -1,0 +1,2 @@
+# Impossible Vault
+ bad idea
