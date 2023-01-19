@@ -8,7 +8,7 @@ import numpy as np
 keythread = codegen.keyT(codegen.keys, True)
 keythread.start()
 
-MAXVOL = 7
+MAXVOL = 15
 streamthread = audiostream.StreamT(MAXVOL)
 streamthread.start()
 
@@ -127,7 +127,7 @@ while run:
             (32, 96),
         )
         screen.blit(font.render("Enter key: " + text, True, (0, 0, 255)), (32, 128))
-        screen.blit(font.render("Current Volume: " + '|'*int(current_vol**1.8), True, (0, 0, 255)), (32, 228))
+        screen.blit(font.render("Current Volume: " + '|'*int(current_vol), True, (0, 0, 255)), (32, 228))
 
     pygame.display.flip()
     clock.tick(30)

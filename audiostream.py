@@ -26,7 +26,7 @@ class StreamT(threading.Thread):
 
     # saves current volume norm to mic_level var
     def print_sound(self, indata, outdata, frames, time, status):
-        volume_norm = (np.linalg.norm(indata)*10)**.5
+        volume_norm = (np.linalg.norm(indata)*10)**.75
         self.latest_vol =  self.latest_vol[1:] + [volume_norm]
         #print(get_last_vol(self), self.latest_vol[-1])
 
