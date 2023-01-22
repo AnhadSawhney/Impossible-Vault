@@ -4,78 +4,103 @@ import audiostream
 import random
 import sounddevice as sd
 import numpy as np
+import percentage_gauge
+import heartrate
+import linedetection
+import threading
 
-keythread = codegen.keyT(codegen.keys, True)
+stopevent = threading.Event()
+
+keythread = codegen.keyT(codegen.keys, True, stopevent)
 keythread.start()
 
-MAXVOL = 15
-streamthread = audiostream.StreamT(MAXVOL)
-streamthread.start()
+MAXVOL = 60
+audiothread = audiostream.StreamT(MAXVOL, stopevent)
+audiothread.start()
+
+MAXHR = 100
+heartthread = heartrate.HeartT(MAXHR, stopevent)
+heartthread.start()
+
+linethread = linedetection.CameraT(stopevent)
+linethread.start()
 
 pygame.init()
 pygame.mixer.init()
 pygame.mixer.music.load("alarm.mp3")
-pygame.mixer.music.set_volume(.5)
-screen = pygame.display.set_mode((1024, 512), pygame.RESIZABLE)
+pygame.mixer.music.set_volume(1)
+#pygame.mixer.pause()
+width, height = (1024, 512)
+screen = pygame.display.set_mode((width, height), pygame.RESIZABLE)
 clock = pygame.time.Clock()
 
 counter, text = 10, "10".rjust(3)
 
-pygame.time.set_timer(pygame.USEREVENT, 250) # game loop runs every .25 sec 
+pygame.time.set_timer(pygame.USEREVENT, 100) # samples audio every .1 sec 
 font = pygame.font.SysFont("Consolas", 30)
 text = ""
-input_active = True
 key_success = False
-started = False
 
-radiation_duration = 10  # seconds
-radiation_delay = 300  # seconds
 counter = 0
 current_vol = 0
+current_hr = 0
+image = None
 game_over = False
+started = False
 
-''' ignore this
-fs = 44100 
-sd.default.samplerate = 44100
-sd.default.channels = 2
+volumeGauge = percentage_gauge.Gauge(
+        screen=screen,
+        FONT=font,
+        x_cord=width / 4,
+        y_cord=height / 2,
+        thickness=30,
+        radius=100,
+        circle_colour=(55, 77, 91),
+        glow=False)
 
-def record(): # calculate current volume by recording a snippet
-    duration = .7  # seconds
-    myrecording = sd.rec(int(duration * fs))
-    print("recording...")
-    sd.wait()
-    volume_norm = np.linalg.norm(myrecording)*5
-    print(volume_norm)
-    return volume_norm
-'''
+heartGauge = percentage_gauge.Gauge(
+        screen=screen,
+        FONT=font,
+        x_cord=2*width / 4,
+        y_cord=height / 2,
+        thickness=30,
+        radius=100,
+        circle_colour=(55, 77, 91),
+        glow=False)
 
 run = True
 while run:
     for event in pygame.event.get():
         if event.type == pygame.USEREVENT:
             #current_vol = record() # take current vol
-            current_vol = audiostream.get_last_vol(streamthread)  # take current vol
-            counter += .25
-            if counter > radiation_duration + radiation_delay:
-                counter = 0
+            current_vol = audiothread.get_last_vol()  # take current vol
+            current_hr = heartthread.get_last_hr()
+            line_status = linethread.is_line_broken()
+            image = linethread.getImageForPygame()
+
+            if current_vol > MAXVOL:  # check the alarms here  
+                game_over = True
+            if current_hr > MAXHR:
+                game_over = True
+            #if line_status:
+            #    game_over = True
+
         elif event.type == pygame.QUIT:
             run = False
-        elif event.type == pygame.KEYDOWN and input_active:
+        elif event.type == pygame.KEYDOWN:
             if event.key == pygame.K_RETURN:
-                input_active = False
+                if text.lower() == keythread.k.lower():
+                    print("Success: correct key entered")
+                    key_success = True
+                else:
+                    print("Key incorrect")
+                    text = ""
+            elif event.key == pygame.K_ESCAPE:
+                run = False
             elif event.key == pygame.K_BACKSPACE:
                 text = text[:-1]
             else:
                 text += event.unicode
-
-    if not input_active:
-        input_active = True
-        if text.lower() == keythread.k.lower():
-            print("Success: correct key entered")
-            key_success = True
-        else:
-            print("Key incorrect")
-            text = ""
 
     if key_success:
         screen.fill((0, 255, 0))
@@ -83,15 +108,13 @@ while run:
         screen.blit(
             font.render("DOWNLOAD SUCCESSFULLY COMPLETED", True, (0, 0, 255)), (x*2/5, y*3/4)
         )
-
-
-    elif counter > radiation_delay or current_vol > MAXVOL or game_over == True:
-        game_over = True
+    elif game_over == True:
+        game_over = True # latch
         screen.fill((130, 0, 0))
         
         if not started:
             pygame.mixer.music.play()
-            started = True
+            started = True # latch
 
         #screen.fill((0, 0, 0))
         # draw 100 random lines across the screen, whose endpoints lie on the border
@@ -104,40 +127,31 @@ while run:
             pygame.draw.line(screen, (255, 0, 0), (x1, y1), (x2, y2))
 
         screen.blit(font.render("Alarms sounded!", True, (255, 255, 255)), (32, 48))
-        '''screen.blit(
-            font.render(
-                "Ends in: "
-                + str(radiation_duration - (counter - radiation_delay))
-                + " seconds",
-                True,
-                (255, 255, 255),
-            ),
-            (32, 96),
-        )
-        screen.blit(font.render("Enter key: " + text, True, (0, 0, 255)), (32, 128))'''
     else:  # normal operation
-        started = False
         screen.fill((0, 0, 0))
-        screen.blit(
-            font.render(
-                "Radiation in: " + str(radiation_delay - int(counter)) + " seconds",
-                True,
-                (0, 0, 255),
-            ),
-            (32, 96),
-        )
-        screen.blit(font.render("Enter key: " + text, True, (0, 0, 255)), (32, 128))
-        screen.blit(font.render("Current Volume: " + '|'*int(current_vol), True, (0, 0, 255)), (32, 228))
+        screen.blit(font.render("Enter key: " + text, True, (0, 0, 255)), (32, 32))
+        
+        volumeGauge.draw(int(current_vol/MAXVOL*100), str(int(current_vol)), True)
+        heartGauge.draw(int(current_hr/MAXHR*100), str(int(current_hr))+" BPM", True)
+
+        #screen.blit(font.render("Current HR: " + str(current_hr) + " BPM", True, (0, 0, 255)), (32, 432))
+
+        if image is not None:
+            iwidth, iheight = image.get_size()
+            new_size = (round(iwidth * 0.3), round(iheight * 0.3))
+            scaled_image = pygame.transform.smoothscale(image, new_size) 
+            image_rect = scaled_image.get_rect(center=(3*width/4, height/2))
+            screen.blit(scaled_image, image_rect)
 
     pygame.display.flip()
     clock.tick(30)
 
+pygame.quit()
 
+print("quitting")
 
-keythread.stop_looping()
+stopevent.set()
 keythread.join()
-
-
-if streamthread.is_alive():
-    streamthread.terminate()
-    streamthread.join()
+heartthread.join()
+linethread.join()
+audiothread.join()

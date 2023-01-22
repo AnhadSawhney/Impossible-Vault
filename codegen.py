@@ -4,7 +4,7 @@ import time
 import threading
 import os
 
-KEYDELAY = 10
+KEYDELAY = 20
 
 
 def generate_keys(n):
@@ -42,16 +42,16 @@ keys = [
 
 # create a new thread that will choose a new key every 3 seconds
 class keyT(threading.Thread):
-    def __init__(self, keys, p):
+    def __init__(self, keys, p, event):
         threading.Thread.__init__(self)
-        self.keep_looping = True
+        self.event = event
         self.keys = keys
         self.k = keys[0]
         self.p = p
         print("Current key: " + self.k)
 
     def run(self):
-        while self.keep_looping:
+        while not self.event.is_set():
             s = time.localtime().tm_sec
             if s % KEYDELAY == 0:
                 self.k = self.keys[s // KEYDELAY]
@@ -62,7 +62,7 @@ class keyT(threading.Thread):
                 print("New key in: " + str(left) + " second", end="")
                 print("s" if left != 1 else "")
 
-            time.sleep(1)
+            self.event.wait(1)
 
-    def stop_looping(self):
-        self.keep_looping = False
+    def terminate(self):
+        self.event.set()
